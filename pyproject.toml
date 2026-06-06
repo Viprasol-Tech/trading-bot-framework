@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trading-bot-framework"
-version = "0.1.0"
+version = "0.2.0"
 description = "Generic strategy-runner trading bot framework with backtesting — by Viprasol Tech."
 readme = "README.md"
 requires-python = ">=3.11"

@@ -57,3 +57,37 @@ def test_execute_without_price_raises() -> None:
     broker = PaperBroker(cash=1_000.0)
     with pytest.raises(ValueError):
         broker.execute(Order("ACME", Side.BUY, 1.0))
+
+
+def test_slippage_makes_buys_fill_higher() -> None:
+    broker = PaperBroker(cash=1_000.0, slippage_rate=0.01)
+    broker.update_price("ACME", 100.0)
+    fill = broker.execute(Order("ACME", Side.BUY, 1.0))
+    assert fill.price == pytest.approx(101.0)
+    assert broker.cash == pytest.approx(899.0)
+
+
+def test_slippage_makes_sells_fill_lower() -> None:
+    broker = PaperBroker(cash=1_000.0, slippage_rate=0.02)
+    broker.update_price("ACME", 100.0)
+    broker.execute(Order("ACME", Side.BUY, 1.0))  # fills at 102
+    broker.update_price("ACME", 100.0)
+    fill = broker.execute(Order("ACME", Side.SELL, 1.0))
+    assert fill.price == pytest.approx(98.0)
+
+
+def test_negative_slippage_rejected() -> None:
+    with pytest.raises(ValueError):
+        PaperBroker(slippage_rate=-0.01)
+
+
+def test_broker_tracks_multiple_symbols_independently() -> None:
+    broker = PaperBroker(cash=10_000.0)
+    broker.update_price("AAA", 100.0)
+    broker.update_price("BBB", 50.0)
+    broker.execute(Order("AAA", Side.BUY, 2.0))
+    broker.execute(Order("BBB", Side.BUY, 4.0))
+    assert broker.position("AAA") == 2.0
+    assert broker.position("BBB") == 4.0
+    # Equity: 10000 - 200 - 200 + 2*100 + 4*50 = 10000.
+    assert broker.equity() == pytest.approx(10_000.0)

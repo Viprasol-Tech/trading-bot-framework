@@ -40,21 +40,31 @@ class Broker(ABC):
 
 
 class PaperBroker(Broker):
-    """A simple long-only paper-trading broker.
+    """A simple multi-symbol long-only paper-trading broker.
 
-    Fills market orders at the last known price plus a proportional commission.
-    Cash and a single position quantity are tracked exactly. Selling more than
-    the held quantity or buying without enough cash raises ``ValueError`` so
-    strategy bugs surface loudly instead of silently corrupting the books.
+    Fills market orders at the last known price, adjusted for ``slippage_rate``
+    (the price moves against you: buys fill higher, sells fill lower) plus a
+    proportional ``fee_rate`` commission. Cash and per-symbol positions are
+    tracked exactly. Selling more than the held quantity or buying without
+    enough cash raises ``ValueError`` so strategy bugs surface loudly instead of
+    silently corrupting the books.
     """
 
-    def __init__(self, cash: float = 10_000.0, fee_rate: float = 0.0) -> None:
+    def __init__(
+        self,
+        cash: float = 10_000.0,
+        fee_rate: float = 0.0,
+        slippage_rate: float = 0.0,
+    ) -> None:
         if cash < 0:
             raise ValueError("starting cash must be non-negative")
         if fee_rate < 0:
             raise ValueError("fee_rate must be non-negative")
+        if slippage_rate < 0:
+            raise ValueError("slippage_rate must be non-negative")
         self.cash = cash
         self.fee_rate = fee_rate
+        self.slippage_rate = slippage_rate
         self._positions: dict[str, float] = {}
         self._prices: dict[str, float] = {}
 
@@ -68,9 +78,15 @@ class PaperBroker(Broker):
         """Fill ``order`` at the last recorded price for its symbol."""
         if order.quantity <= 0:
             raise ValueError("order quantity must be positive")
-        price = self._prices.get(order.symbol)
-        if price is None:
+        mid = self._prices.get(order.symbol)
+        if mid is None:
             raise ValueError(f"no price known for {order.symbol!r}")
+
+        # Slippage always works against the trader.
+        if order.side is Side.BUY:
+            price = mid * (1.0 + self.slippage_rate)
+        else:
+            price = mid * (1.0 - self.slippage_rate)
 
         fee = order.quantity * price * self.fee_rate
         fill = Fill(order.symbol, order.side, order.quantity, price, fee)

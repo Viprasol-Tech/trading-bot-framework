@@ -52,13 +52,15 @@ def backtest(
     bars: Sequence[Bar],
     starting_cash: float = 10_000.0,
     fee_rate: float = 0.0,
+    slippage_rate: float = 0.0,
 ) -> BacktestResult:
     """Run ``strategy`` over ``bars`` and return performance statistics.
 
     The equity curve has exactly one entry per bar (the account equity marked
     to that bar's close), so ``len(result.equity_curve) == len(bars)``.
+    ``fee_rate`` and ``slippage_rate`` are forwarded to the paper broker.
     """
-    broker = PaperBroker(cash=starting_cash, fee_rate=fee_rate)
+    broker = PaperBroker(cash=starting_cash, fee_rate=fee_rate, slippage_rate=slippage_rate)
     engine = Engine(strategy, broker)
     curve: list[float] = []
     for bar in bars:
